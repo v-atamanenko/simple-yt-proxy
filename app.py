@@ -1,10 +1,38 @@
-import sys
 import datetime
+import io
+import json
+import os
+import re
 import requests
+import stem.process
+import sys
+import time
+import socks
+import socket
 
+from datetime import datetime
 from flask import Flask
 from flask import request, jsonify
 from flask_cors import CORS
+from pytube import Channel
+from pytube import YouTube
+from youtubesearchpython import *
+
+app = Flask(__name__)
+CORS(app)
+
+SOCKS_PORT = 9050
+TOR_PATH = os.path.normpath("/usr/local/bin/tor")
+tor_process = stem.process.launch_tor_with_config(
+    config = {
+        'SocksPort': str(SOCKS_PORT),
+    },
+    init_msg_handler = lambda line: print(line) if re.search('Bootstrapped', line) else False,
+    tor_cmd = TOR_PATH
+)
+
+socks.set_default_proxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+socket.socket = socks.socksocket
 
 # TODO: make queue for requests
 #import redis
@@ -12,19 +40,9 @@ from flask_cors import CORS
 #from redis import Redis
 #from worker import run_worker
 #from rq.job import Job
-
-from youtubesearchpython import *
-
-app = Flask(__name__)
-CORS(app)
-
 #redis_conn = Redis(host="127.0.0.1", port=6379)
 #q = Queue(connection=redis_conn)
 
-from pytube import YouTube
-from pytube import Channel
-import time
-import json
 
 def parseSubscriberCount(subs):
     subs = subs.replace(" subscribers", "")
@@ -133,6 +151,20 @@ def info():
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response
     except Exception as e:
+        if "Too Many Requests" in str(e):
+            try:
+                if controller.is_newnym_available():
+                    controller.signal(Signal.NEWNYM)
+                response = jsonify(getVideoInfo(video_id))
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                return response
+            except Exception as e:
+                response = jsonify({
+                    "error": "Failed to get video info: " + str(e)
+                })
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                return response
+
         response = jsonify({
             "error": "Failed to get video info: " + str(e)
         })
