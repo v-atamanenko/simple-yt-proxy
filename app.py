@@ -14,9 +14,9 @@ from datetime import datetime
 from flask import Flask
 from flask import request, jsonify
 from flask_cors import CORS
+from youtubesearchpython import *
 from pytube import Channel
 from pytube import YouTube
-from youtubesearchpython import *
 
 app = Flask(__name__)
 CORS(app)
@@ -67,8 +67,14 @@ def parseSubscriberCount(subs):
 
 
 def getVideoInfo(url):
-    yt = YouTube('https://www.youtube.com/watch?v=koxXu5Wa11I')
-    ch = Channel(yt.channel_url)
+    yt = YouTube(url)
+    churl = ""
+    try:
+        churl = yt.channel_url
+    except Exception as e:
+        raise ValueError("Unable to fetch channel url: possibly bad video URL.")
+    
+    ch = Channel(churl)
 
     res = {}
     res["id"] = yt.vid_info["videoDetails"]["videoId"]
@@ -159,12 +165,13 @@ def info():
                 response.headers.add('Access-Control-Allow-Origin', '*')
                 return response
             except Exception as e:
+                raise
                 response = jsonify({
                     "error": "Failed to get video info: " + str(e)
                 })
                 response.headers.add('Access-Control-Allow-Origin', '*')
                 return response
-
+        raise
         response = jsonify({
             "error": "Failed to get video info: " + str(e)
         })
